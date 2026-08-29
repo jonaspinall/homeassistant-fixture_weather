@@ -221,6 +221,11 @@ class FixtureWeatherCoordinator(
             end,
         )
 
+        # Restrict precipitation warnings to the active event window,
+        # or the next event window once it begins. A precipitation
+        # block already underway may continue until it ends, even if
+        # that extends beyond the event itself, but we do not keep
+        # looking for precipitation after the current or next event window.
         current_event_start: datetime | None = None
         current_event_end: datetime | None = None
 
@@ -863,7 +868,10 @@ class FixtureWeatherCoordinator(
             ):
                 continue
 
-            # Ignore periods that have completely finished.
+            # Ignore periods that have completely finished. When a
+            # calendar is active, also exclude precipitation that falls
+            # before the active/next event window and stop once the
+            # current event window ends unless a block is already live.
             if period_end <= now:
                 continue
 
