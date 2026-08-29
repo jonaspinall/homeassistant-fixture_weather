@@ -1,10 +1,12 @@
 """Tests for the Fixture Weather coordinator."""
 
 from datetime import date, datetime
+from types import SimpleNamespace
 
 from custom_components.fixture_weather.coordinator import (
     FixtureWeatherCoordinator,
 )
+from custom_components.fixture_weather.geocoder import Location
 
 
 
@@ -108,3 +110,47 @@ def test_precipitation_summary_stops_at_gap() -> None:
     assert attributes["start"] == "2026-08-29T12:00:00+00:00"
     assert attributes["end"] == "2026-08-29T12:15:00+00:00"
     assert attributes["amount"] == 0.2
+
+
+def test_merge_hourly_forecast_starts_at_current_hour() -> None:
+    """The current hour should be included even after the minute mark."""
+    coordinator = object.__new__(FixtureWeatherCoordinator)
+    coordinator.hass = SimpleNamespace(
+        config=SimpleNamespace(time_zone="UTC")
+    )
+    coordinator.base_location_name = "Boston, MA"
+
+    now = datetime.fromisoformat("2026-08-29T17:15:00+00:00")
+
+    result = coordinator._merge_hourly_forecast(
+        {
+            date(2026, 8, 29): "Boston, MA",
+        },
+        {
+            "Boston, MA": Location(
+                query="Boston, MA",
+                latitude=42.3601,
+                longitude=-71.0589,
+                display_name="Boston, MA",
+            )
+        },
+        {
+            (42.3601, -71.0589): {
+                "hourly": {
+                    "time": [
+                        "2026-08-29T17:00",
+                        "2026-08-29T18:00",
+                    ],
+                    "temperature_2m": [18.2, 19.0],
+                    "weather_code": [0, 1],
+                    "is_day": [1, 1],
+                }
+            }
+        },
+        now,
+    )
+
+    assert [entry["local_datetime"] for entry in result] == [
+        datetime.fromisoformat("2026-08-29T17:00:00+00:00"),
+        datetime.fromisoformat("2026-08-29T18:00:00+00:00"),
+    ]

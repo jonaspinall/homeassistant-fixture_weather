@@ -408,8 +408,14 @@ class FixtureWeatherCoordinator(
             }
         )
 
+        current_hour = now.replace(
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
         for local_dt in all_times:
-            if local_dt < now:
+            if local_dt < current_hour:
                 continue
 
             location_name = locations_by_date.get(
