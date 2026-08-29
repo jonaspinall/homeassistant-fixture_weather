@@ -19,6 +19,7 @@ from .const import (
     CONF_BASE_LOCATION,
     CONF_CALENDAR,
     DEFAULT_UPDATE_INTERVAL,
+    EVENT_LOCATION_GRACE_PERIOD,
     FORECAST_DAYS,
     MINUTELY_PRECIPITATION_THRESHOLD,
 )
@@ -100,6 +101,7 @@ class FixtureWeatherCoordinator(
         # "an event exists today but its location happens to be
         # the base location".
         event_locations_by_date: dict[date, str] = {}
+        events: list[dict[str, Any]] = []
 
         if self.calendar_entity:
             events = await self._async_get_calendar_events(
@@ -212,9 +214,11 @@ class FixtureWeatherCoordinator(
             forecast_by_location,
         )
 
-        current_location_name = locations_by_date.get(
-            local_today,
+        current_location_name = self._get_current_location_name(
+            events,
+            now,
             self.base_location_name,
+            end,
         )
 
         current_location = locations.get(
@@ -280,6 +284,97 @@ class FixtureWeatherCoordinator(
             "events",
             [],
         )
+
+    @staticmethod
+    def _get_current_location_name(
+        events: list[dict[str, Any]],
+        now: datetime,
+        base_location_name: str,
+        forecast_end: datetime | None = None,
+    ) -> str:
+        """Return the current event location, including the grace period."""
+        current_event: tuple[str, datetime, datetime] | None = None
+        next_event: tuple[str, datetime, datetime] | None = None
+        last_event: tuple[str, datetime, datetime] | None = None
+
+        for event in sorted(
+            events,
+            key=lambda event: (
+                _parse_calendar_datetime(event.get("start"))
+                or datetime.max.replace(tzinfo=dt_util.UTC),
+            ),
+        ):
+            location = event.get("location")
+
+            if not location:
+                continue
+
+            location = location.strip()
+
+            if not location:
+                continue
+
+            start = _parse_calendar_datetime(
+                event.get("start")
+            )
+
+            end = _parse_calendar_datetime(
+                event.get("end")
+            )
+
+            if start is None:
+                continue
+
+            if end is None:
+                end = start
+
+            last_event = (location, start, end)
+
+            if start <= now:
+                current_event = (location, start, end)
+                continue
+
+            if next_event is None:
+                next_event = (location, start, end)
+
+        if current_event is not None:
+            location, _, end = current_event
+
+            if now < end:
+                return location
+
+            if now < end + EVENT_LOCATION_GRACE_PERIOD:
+                if next_event is not None and next_event[1] <= now:
+                    return next_event[0]
+                return location
+
+            if (
+                next_event is not None
+                and next_event[1] <= now
+            ):
+                return next_event[0]
+
+            if (
+                last_event is not None
+                and current_event == last_event
+                and forecast_end is not None
+                and now < forecast_end
+            ):
+                return location
+
+            return base_location_name
+
+        if next_event is not None:
+            return next_event[0]
+
+        if (
+            last_event is not None
+            and forecast_end is not None
+            and now < forecast_end
+        ):
+            return last_event[0]
+
+        return base_location_name
 
     @staticmethod
     def _apply_event_location(

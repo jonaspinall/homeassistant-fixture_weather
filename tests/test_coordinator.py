@@ -154,3 +154,78 @@ def test_merge_hourly_forecast_starts_at_current_hour() -> None:
         datetime.fromisoformat("2026-08-29T17:00:00+00:00"),
         datetime.fromisoformat("2026-08-29T18:00:00+00:00"),
     ]
+
+
+def test_get_current_location_keeps_previous_event_during_grace() -> None:
+    """The previous event stays in effect through the 3-hour grace period."""
+    now = datetime.fromisoformat("2026-08-29T23:50:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [
+            {
+                "location": "Boston, MA",
+                "start": "2026-08-29T20:00:00+00:00",
+                "end": "2026-08-29T21:30:00+00:00",
+            },
+            {
+                "location": "New York, NY",
+                "start": "2026-08-30T00:15:00+00:00",
+                "end": "2026-08-30T02:00:00+00:00",
+            },
+        ],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "Boston, MA"
+
+
+def test_get_current_location_uses_next_event_at_start() -> None:
+    """The next event wins from its start time, cutting short the grace period."""
+    now = datetime.fromisoformat("2026-08-30T00:15:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [
+            {
+                "location": "Boston, MA",
+                "start": "2026-08-29T20:00:00+00:00",
+                "end": "2026-08-29T21:30:00+00:00",
+            },
+            {
+                "location": "New York, NY",
+                "start": "2026-08-30T00:15:00+00:00",
+                "end": "2026-08-30T02:00:00+00:00",
+            },
+        ],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "New York, NY"
+
+
+def test_get_current_location_keeps_last_event_to_forecast_end() -> None:
+    """A final event remains selected through the forecast window."""
+    now = datetime.fromisoformat("2026-08-30T03:15:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [
+            {
+                "location": "Boston, MA",
+                "start": "2026-08-29T20:00:00+00:00",
+                "end": "2026-08-29T21:30:00+00:00",
+            },
+            {
+                "location": "New York, NY",
+                "start": "2026-08-30T00:15:00+00:00",
+                "end": "2026-08-30T02:00:00+00:00",
+            },
+        ],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "New York, NY"

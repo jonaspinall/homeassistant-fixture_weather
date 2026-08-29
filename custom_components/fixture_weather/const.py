@@ -9,6 +9,7 @@ CONF_CALENDAR = "calendar"
 
 DEFAULT_UPDATE_INTERVAL = timedelta(minutes=30)
 FORECAST_DAYS = 14
+EVENT_LOCATION_GRACE_PERIOD = timedelta(hours=3)
 
 # High-resolution precipitation forecast window.
 MINUTELY_PRECIPITATION_HOURS = 48
