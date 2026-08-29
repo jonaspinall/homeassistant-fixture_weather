@@ -1,10 +1,12 @@
 """Tests for the Fixture Weather coordinator."""
 
 from datetime import date, datetime
+from types import SimpleNamespace
 
 from custom_components.fixture_weather.coordinator import (
     FixtureWeatherCoordinator,
 )
+from custom_components.fixture_weather.geocoder import Location
 
 
 
@@ -108,3 +110,296 @@ def test_precipitation_summary_stops_at_gap() -> None:
     assert attributes["start"] == "2026-08-29T12:00:00+00:00"
     assert attributes["end"] == "2026-08-29T12:15:00+00:00"
     assert attributes["amount"] == 0.2
+
+
+def test_precipitation_summary_stops_at_next_event_end() -> None:
+    """Only precipitation within the next event window is considered."""
+    now = datetime.fromisoformat("2026-08-29T17:05:00+00:00")
+    summary, attributes = (
+        FixtureWeatherCoordinator._build_precipitation_summary(
+            [
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T17:45:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T18:00:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T18:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T18:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T19:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T19:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+            ],
+            now,
+            "Boston, MA",
+            event_start=datetime.fromisoformat(
+                "2026-08-29T18:00:00+00:00"
+            ),
+            event_end=datetime.fromisoformat(
+                "2026-08-29T19:00:00+00:00"
+            ),
+        )
+    )
+
+    assert summary == "Rain from 6:00pm to 6:15pm"
+    assert attributes["start"] == "2026-08-29T18:00:00+00:00"
+    assert attributes["end"] == "2026-08-29T18:15:00+00:00"
+
+
+def test_precipitation_summary_keeps_active_period_past_event_end() -> None:
+    """A precipitation block that is already active can continue through its end."""
+    now = datetime.fromisoformat("2026-08-29T15:50:00+00:00")
+    summary, attributes = (
+        FixtureWeatherCoordinator._build_precipitation_summary(
+            [
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T15:45:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T16:00:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T16:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T16:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T17:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T17:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+            ],
+            now,
+            "Boston, MA",
+            event_start=datetime.fromisoformat(
+                "2026-08-29T15:00:00+00:00"
+            ),
+            event_end=datetime.fromisoformat(
+                "2026-08-29T16:00:00+00:00"
+            ),
+        )
+    )
+
+    assert summary == "Rain until 4:15pm"
+    assert attributes["start"] == "2026-08-29T15:45:00+00:00"
+    assert attributes["end"] == "2026-08-29T16:15:00+00:00"
+
+
+def test_get_current_location_uses_base_location_without_calendar() -> None:
+    """Without a calendar, the base location remains active."""
+    now = datetime.fromisoformat("2026-08-29T12:30:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "Base City"
+
+
+def test_precipitation_summary_without_calendar_uses_full_forecast() -> None:
+    """Without events, precipitation is not capped to a calendar window."""
+    now = datetime.fromisoformat("2026-08-29T12:05:00+00:00")
+    summary, attributes = (
+        FixtureWeatherCoordinator._build_precipitation_summary(
+            [
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T12:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T12:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T12:15:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T12:30:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+            ],
+            now,
+            "Boston, MA",
+        )
+    )
+
+    assert summary == "Rain until 12:30pm"
+    assert attributes["start"] == "2026-08-29T12:00:00+00:00"
+    assert attributes["end"] == "2026-08-29T12:30:00+00:00"
+    assert attributes["amount"] == 0.4
+
+
+def test_merge_hourly_forecast_starts_at_current_hour() -> None:
+    """The current hour should be included even after the minute mark."""
+    coordinator = object.__new__(FixtureWeatherCoordinator)
+    coordinator.hass = SimpleNamespace(
+        config=SimpleNamespace(time_zone="UTC")
+    )
+    coordinator.base_location_name = "Boston, MA"
+
+    now = datetime.fromisoformat("2026-08-29T17:15:00+00:00")
+
+    result = coordinator._merge_hourly_forecast(
+        {
+            date(2026, 8, 29): "Boston, MA",
+        },
+        {
+            "Boston, MA": Location(
+                query="Boston, MA",
+                latitude=42.3601,
+                longitude=-71.0589,
+                display_name="Boston, MA",
+            )
+        },
+        {
+            (42.3601, -71.0589): {
+                "hourly": {
+                    "time": [
+                        "2026-08-29T17:00",
+                        "2026-08-29T18:00",
+                    ],
+                    "temperature_2m": [18.2, 19.0],
+                    "weather_code": [0, 1],
+                    "is_day": [1, 1],
+                }
+            }
+        },
+        now,
+    )
+
+    assert [entry["local_datetime"] for entry in result] == [
+        datetime.fromisoformat("2026-08-29T17:00:00+00:00"),
+        datetime.fromisoformat("2026-08-29T18:00:00+00:00"),
+    ]
+
+
+def test_get_current_location_keeps_previous_event_during_grace() -> None:
+    """The previous event stays in effect through the 3-hour grace period."""
+    now = datetime.fromisoformat("2026-08-29T23:50:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [
+            {
+                "location": "Boston, MA",
+                "start": "2026-08-29T20:00:00+00:00",
+                "end": "2026-08-29T21:30:00+00:00",
+            },
+            {
+                "location": "New York, NY",
+                "start": "2026-08-30T00:15:00+00:00",
+                "end": "2026-08-30T02:00:00+00:00",
+            },
+        ],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "Boston, MA"
+
+
+def test_get_current_location_uses_next_event_at_start() -> None:
+    """The next event wins from its start time, cutting short the grace period."""
+    now = datetime.fromisoformat("2026-08-30T00:15:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [
+            {
+                "location": "Boston, MA",
+                "start": "2026-08-29T20:00:00+00:00",
+                "end": "2026-08-29T21:30:00+00:00",
+            },
+            {
+                "location": "New York, NY",
+                "start": "2026-08-30T00:15:00+00:00",
+                "end": "2026-08-30T02:00:00+00:00",
+            },
+        ],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "New York, NY"
+
+
+def test_get_current_location_keeps_last_event_to_forecast_end() -> None:
+    """A final event remains selected through the forecast window."""
+    now = datetime.fromisoformat("2026-08-30T03:15:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [
+            {
+                "location": "Boston, MA",
+                "start": "2026-08-29T20:00:00+00:00",
+                "end": "2026-08-29T21:30:00+00:00",
+            },
+            {
+                "location": "New York, NY",
+                "start": "2026-08-30T00:15:00+00:00",
+                "end": "2026-08-30T02:00:00+00:00",
+            },
+        ],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "New York, NY"

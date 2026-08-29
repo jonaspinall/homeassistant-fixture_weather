@@ -19,6 +19,7 @@ from .const import (
     CONF_BASE_LOCATION,
     CONF_CALENDAR,
     DEFAULT_UPDATE_INTERVAL,
+    EVENT_LOCATION_GRACE_PERIOD,
     FORECAST_DAYS,
     MINUTELY_PRECIPITATION_THRESHOLD,
 )
@@ -100,6 +101,7 @@ class FixtureWeatherCoordinator(
         # "an event exists today but its location happens to be
         # the base location".
         event_locations_by_date: dict[date, str] = {}
+        events: list[dict[str, Any]] = []
 
         if self.calendar_entity:
             events = await self._async_get_calendar_events(
@@ -212,10 +214,46 @@ class FixtureWeatherCoordinator(
             forecast_by_location,
         )
 
-        current_location_name = locations_by_date.get(
-            local_today,
+        current_location_name = self._get_current_location_name(
+            events,
+            now,
             self.base_location_name,
+            end,
         )
+
+        # Restrict precipitation warnings to the active event window,
+        # or the next event window once it begins. A precipitation
+        # block already underway may continue until it ends, even if
+        # that extends beyond the event itself, but we do not keep
+        # looking for precipitation after the current or next event window.
+        current_event_start: datetime | None = None
+        current_event_end: datetime | None = None
+
+        for event in sorted(
+            events,
+            key=lambda event: (
+                _parse_calendar_datetime(event.get("start"))
+                or datetime.max.replace(tzinfo=dt_util.UTC),
+            ),
+        ):
+            start = _parse_calendar_datetime(event.get("start"))
+            end_time = _parse_calendar_datetime(event.get("end"))
+
+            if start is None:
+                continue
+
+            if end_time is None:
+                end_time = start
+
+            if start <= now < end_time:
+                current_event_start = now
+                current_event_end = end_time
+                break
+
+            if start > now and current_event_start is None:
+                current_event_start = start
+                current_event_end = end_time
+                break
 
         current_location = locations.get(
             current_location_name,
@@ -240,6 +278,8 @@ class FixtureWeatherCoordinator(
             minutely_precipitation,
             now,
             current_location_name,
+            event_start=current_event_start,
+            event_end=current_event_end,
         )
 
         return FixtureWeatherData(
@@ -280,6 +320,97 @@ class FixtureWeatherCoordinator(
             "events",
             [],
         )
+
+    @staticmethod
+    def _get_current_location_name(
+        events: list[dict[str, Any]],
+        now: datetime,
+        base_location_name: str,
+        forecast_end: datetime | None = None,
+    ) -> str:
+        """Return the current event location, including the grace period."""
+        current_event: tuple[str, datetime, datetime] | None = None
+        next_event: tuple[str, datetime, datetime] | None = None
+        last_event: tuple[str, datetime, datetime] | None = None
+
+        for event in sorted(
+            events,
+            key=lambda event: (
+                _parse_calendar_datetime(event.get("start"))
+                or datetime.max.replace(tzinfo=dt_util.UTC),
+            ),
+        ):
+            location = event.get("location")
+
+            if not location:
+                continue
+
+            location = location.strip()
+
+            if not location:
+                continue
+
+            start = _parse_calendar_datetime(
+                event.get("start")
+            )
+
+            end = _parse_calendar_datetime(
+                event.get("end")
+            )
+
+            if start is None:
+                continue
+
+            if end is None:
+                end = start
+
+            last_event = (location, start, end)
+
+            if start <= now:
+                current_event = (location, start, end)
+                continue
+
+            if next_event is None:
+                next_event = (location, start, end)
+
+        if current_event is not None:
+            location, _, end = current_event
+
+            if now < end:
+                return location
+
+            if now < end + EVENT_LOCATION_GRACE_PERIOD:
+                if next_event is not None and next_event[1] <= now:
+                    return next_event[0]
+                return location
+
+            if (
+                next_event is not None
+                and next_event[1] <= now
+            ):
+                return next_event[0]
+
+            if (
+                last_event is not None
+                and current_event == last_event
+                and forecast_end is not None
+                and now < forecast_end
+            ):
+                return location
+
+            return base_location_name
+
+        if next_event is not None:
+            return next_event[0]
+
+        if (
+            last_event is not None
+            and forecast_end is not None
+            and now < forecast_end
+        ):
+            return last_event[0]
+
+        return base_location_name
 
     @staticmethod
     def _apply_event_location(
@@ -408,8 +539,14 @@ class FixtureWeatherCoordinator(
             }
         )
 
+        current_hour = now.replace(
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
         for local_dt in all_times:
-            if local_dt < now:
+            if local_dt < current_hour:
                 continue
 
             location_name = locations_by_date.get(
@@ -650,6 +787,8 @@ class FixtureWeatherCoordinator(
         minutely: list[dict[str, Any]],
         now: datetime,
         current_location: str,
+        event_start: datetime | None = None,
+        event_end: datetime | None = None,
     ) -> tuple[
         str,
         dict[str, Any],
@@ -729,8 +868,17 @@ class FixtureWeatherCoordinator(
             ):
                 continue
 
-            # Ignore periods that have completely finished.
+            # Ignore periods that have completely finished. When a
+            # calendar is active, also exclude precipitation that falls
+            # before the active/next event window and stop once the
+            # current event window ends unless a block is already live.
             if period_end <= now:
+                continue
+
+            if event_start is not None and period_end <= event_start:
+                continue
+
+            if event_end is not None and period_start > event_end:
                 continue
 
             periods.append(
