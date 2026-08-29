@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Fixture Weather",
+        "description": "Configure a weather entity using a fixed base location and optionally a Home Assistant calendar.",
+        "data": {
+          "name": "Name",
+          "base_location": "Base location",
+          "calendar": "Calendar"
+        },
+        "data_description": {
+          "name": "The name used for the weather entity, for example Baseball or Cricket.",
+          "base_location": "A fallback weather location, such as Wimbledon, London.",
+          "calendar": "Optional calendar whose event locations will determine the weather location for each calendar day."
+        }
+      }
+    }
+  }
+}

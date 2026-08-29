@@ -1,0 +1,13 @@
+{
+  "domain": "fixture_weather",
+  "name": "Fixture Weather",
+  "version": "0.1.0",
+  "config_flow": true,
+  "documentation": "https://github.com/example/fixture-weather",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "after_dependencies": [
+    "http"
+  ],
+  "codeowners": []
+}
