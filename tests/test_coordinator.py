@@ -112,6 +112,124 @@ def test_precipitation_summary_stops_at_gap() -> None:
     assert attributes["amount"] == 0.2
 
 
+def test_precipitation_summary_stops_at_next_event_end() -> None:
+    """Only precipitation within the next event window is considered."""
+    now = datetime.fromisoformat("2026-08-29T17:05:00+00:00")
+    summary, attributes = (
+        FixtureWeatherCoordinator._build_precipitation_summary(
+            [
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T17:45:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T18:00:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T18:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T18:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T19:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T19:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+            ],
+            now,
+            "Boston, MA",
+            event_start=datetime.fromisoformat(
+                "2026-08-29T18:00:00+00:00"
+            ),
+            event_end=datetime.fromisoformat(
+                "2026-08-29T19:00:00+00:00"
+            ),
+        )
+    )
+
+    assert summary == "Rain from 6:00pm to 6:15pm"
+    assert attributes["start"] == "2026-08-29T18:00:00+00:00"
+    assert attributes["end"] == "2026-08-29T18:15:00+00:00"
+
+
+def test_precipitation_summary_keeps_active_period_past_event_end() -> None:
+    """A precipitation block that is already active can continue through its end."""
+    now = datetime.fromisoformat("2026-08-29T15:50:00+00:00")
+    summary, attributes = (
+        FixtureWeatherCoordinator._build_precipitation_summary(
+            [
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T15:45:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T16:00:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T16:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T16:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T17:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T17:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+            ],
+            now,
+            "Boston, MA",
+            event_start=datetime.fromisoformat(
+                "2026-08-29T15:00:00+00:00"
+            ),
+            event_end=datetime.fromisoformat(
+                "2026-08-29T16:00:00+00:00"
+            ),
+        )
+    )
+
+    assert summary == "Rain until 4:15pm"
+    assert attributes["start"] == "2026-08-29T15:45:00+00:00"
+    assert attributes["end"] == "2026-08-29T16:15:00+00:00"
+
+
 def test_merge_hourly_forecast_starts_at_current_hour() -> None:
     """The current hour should be included even after the minute mark."""
     coordinator = object.__new__(FixtureWeatherCoordinator)

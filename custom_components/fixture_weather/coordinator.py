@@ -221,6 +221,35 @@ class FixtureWeatherCoordinator(
             end,
         )
 
+        current_event_start: datetime | None = None
+        current_event_end: datetime | None = None
+
+        for event in sorted(
+            events,
+            key=lambda event: (
+                _parse_calendar_datetime(event.get("start"))
+                or datetime.max.replace(tzinfo=dt_util.UTC),
+            ),
+        ):
+            start = _parse_calendar_datetime(event.get("start"))
+            end_time = _parse_calendar_datetime(event.get("end"))
+
+            if start is None:
+                continue
+
+            if end_time is None:
+                end_time = start
+
+            if start <= now < end_time:
+                current_event_start = now
+                current_event_end = end_time
+                break
+
+            if start > now and current_event_start is None:
+                current_event_start = start
+                current_event_end = end_time
+                break
+
         current_location = locations.get(
             current_location_name,
             self._base_location,
@@ -244,6 +273,8 @@ class FixtureWeatherCoordinator(
             minutely_precipitation,
             now,
             current_location_name,
+            event_start=current_event_start,
+            event_end=current_event_end,
         )
 
         return FixtureWeatherData(
@@ -751,6 +782,8 @@ class FixtureWeatherCoordinator(
         minutely: list[dict[str, Any]],
         now: datetime,
         current_location: str,
+        event_start: datetime | None = None,
+        event_end: datetime | None = None,
     ) -> tuple[
         str,
         dict[str, Any],
@@ -832,6 +865,12 @@ class FixtureWeatherCoordinator(
 
             # Ignore periods that have completely finished.
             if period_end <= now:
+                continue
+
+            if event_start is not None and period_end <= event_start:
+                continue
+
+            if event_end is not None and period_start > event_end:
                 continue
 
             periods.append(
