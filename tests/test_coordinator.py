@@ -230,6 +230,62 @@ def test_precipitation_summary_keeps_active_period_past_event_end() -> None:
     assert attributes["end"] == "2026-08-29T16:15:00+00:00"
 
 
+def test_get_current_location_uses_base_location_without_calendar() -> None:
+    """Without a calendar, the base location remains active."""
+    now = datetime.fromisoformat("2026-08-29T12:30:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "Base City"
+
+
+def test_precipitation_summary_without_calendar_uses_full_forecast() -> None:
+    """Without events, precipitation is not capped to a calendar window."""
+    now = datetime.fromisoformat("2026-08-29T12:05:00+00:00")
+    summary, attributes = (
+        FixtureWeatherCoordinator._build_precipitation_summary(
+            [
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T12:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T12:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T12:15:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T12:30:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+            ],
+            now,
+            "Boston, MA",
+        )
+    )
+
+    assert summary == "Rain until 12:30pm"
+    assert attributes["start"] == "2026-08-29T12:00:00+00:00"
+    assert attributes["end"] == "2026-08-29T12:30:00+00:00"
+    assert attributes["amount"] == 0.4
+
+
 def test_merge_hourly_forecast_starts_at_current_hour() -> None:
     """The current hour should be included even after the minute mark."""
     coordinator = object.__new__(FixtureWeatherCoordinator)
