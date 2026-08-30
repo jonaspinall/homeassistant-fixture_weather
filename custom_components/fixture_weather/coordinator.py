@@ -328,7 +328,7 @@ class FixtureWeatherCoordinator(
         base_location_name: str,
         forecast_end: datetime | None = None,
     ) -> str:
-        """Return the current event location, including the grace period."""
+        """Return the active or upcoming event location, including grace logic."""
         current_event: tuple[str, datetime, datetime] | None = None
         next_event: tuple[str, datetime, datetime] | None = None
         last_event: tuple[str, datetime, datetime] | None = None

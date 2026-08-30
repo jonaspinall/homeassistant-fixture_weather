@@ -36,7 +36,7 @@ After installation:
 4. Enter a name and the fallback base location.
 5. Optionally select a calendar.
 
-When a calendar is configured, the current forecast location follows the active event while it is running. If no event is active, it switches to the next event's location from that event's start time. The previous event remains in effect through a 3-hour grace period after it ends, unless the next event starts sooner and takes precedence. Days without a located event use the configured base location. If a calendar location cannot be geocoded, the base location is used for that day.
+When a calendar is configured, the current forecast location follows the active event while it is running. After an event ends, its location stays in effect through a 3-hour grace period, unless a later event starts sooner and takes precedence. Future days/hours in the forecast are for whichever event is active or coming up. If a calendar location cannot be geocoded, the base location is used.
 
 ## Entities
 
