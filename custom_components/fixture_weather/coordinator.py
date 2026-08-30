@@ -379,16 +379,11 @@ class FixtureWeatherCoordinator(
             if now < end:
                 return location
 
-            if now < end + EVENT_LOCATION_GRACE_PERIOD:
-                if next_event is not None and next_event[1] <= now:
-                    return next_event[0]
-                return location
-
-            if (
-                next_event is not None
-                and next_event[1] <= now
-            ):
+            if next_event is not None:
                 return next_event[0]
+
+            if now < end + EVENT_LOCATION_GRACE_PERIOD:
+                return location
 
             if (
                 last_event is not None

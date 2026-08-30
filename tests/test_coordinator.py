@@ -244,6 +244,31 @@ def test_get_current_location_uses_base_location_without_calendar() -> None:
     assert location == "Base City"
 
 
+def test_get_current_location_uses_upcoming_event_before_it_starts() -> None:
+    """The first upcoming event should win even before it starts."""
+    now = datetime.fromisoformat("2026-08-29T23:50:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [
+            {
+                "location": "Boston, MA",
+                "start": "2026-08-29T20:00:00+00:00",
+                "end": "2026-08-29T21:30:00+00:00",
+            },
+            {
+                "location": "New York, NY",
+                "start": "2026-08-30T00:15:00+00:00",
+                "end": "2026-08-30T02:00:00+00:00",
+            },
+        ],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "New York, NY"
+
+
 def test_precipitation_summary_without_calendar_uses_full_forecast() -> None:
     """Without events, precipitation is not capped to a calendar window."""
     now = datetime.fromisoformat("2026-08-29T12:05:00+00:00")
@@ -330,8 +355,8 @@ def test_merge_hourly_forecast_starts_at_current_hour() -> None:
     ]
 
 
-def test_get_current_location_keeps_previous_event_during_grace() -> None:
-    """The previous event stays in effect through the 3-hour grace period."""
+def test_get_current_location_uses_upcoming_event_before_it_starts() -> None:
+    """An upcoming calendar event should replace the previous venue before its start."""
     now = datetime.fromisoformat("2026-08-29T23:50:00+00:00")
 
     location = FixtureWeatherCoordinator._get_current_location_name(
@@ -352,7 +377,7 @@ def test_get_current_location_keeps_previous_event_during_grace() -> None:
         datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
     )
 
-    assert location == "Boston, MA"
+    assert location == "New York, NY"
 
 
 def test_get_current_location_uses_next_event_at_start() -> None:
