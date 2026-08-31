@@ -230,6 +230,72 @@ def test_precipitation_summary_keeps_active_period_past_event_end() -> None:
     assert attributes["end"] == "2026-08-29T16:15:00+00:00"
 
 
+def test_days_until_event_start_is_zero_for_active_or_near_event() -> None:
+    """Active or soon-to-start events count as zero days remaining."""
+    now = datetime.fromisoformat("2026-08-29T11:00:00+00:00")
+
+    assert (
+        FixtureWeatherCoordinator._days_until_event_start(
+            [
+                {
+                    "location": "Boston, MA",
+                    "start": "2026-08-29T12:00:00+00:00",
+                    "end": "2026-08-29T13:00:00+00:00",
+                }
+            ],
+            now,
+        )
+        == 0
+    )
+
+    assert (
+        FixtureWeatherCoordinator._days_until_event_start(
+            [
+                {
+                    "location": "Boston, MA",
+                    "start": "2026-08-30T12:00:00+00:00",
+                    "end": "2026-08-30T13:00:00+00:00",
+                }
+            ],
+            now,
+        )
+        == 1
+    )
+
+
+def test_days_until_event_start_counts_full_days() -> None:
+    """The value counts full 24-hour periods until the next event."""
+    now = datetime.fromisoformat("2026-08-29T11:00:00+00:00")
+
+    assert (
+        FixtureWeatherCoordinator._days_until_event_start(
+            [
+                {
+                    "location": "Boston, MA",
+                    "start": "2026-08-31T12:00:00+00:00",
+                    "end": "2026-08-31T13:00:00+00:00",
+                }
+            ],
+            now,
+        )
+        == 2
+    )
+
+    assert (
+        FixtureWeatherCoordinator._days_until_event_start(
+            [
+                {
+                    "location": "Boston, MA",
+                    "start": "2026-09-02T12:00:00+00:00",
+                    "end": "2026-09-02T13:00:00+00:00",
+                }
+            ],
+            now,
+        )
+        == 4
+    )
+
+
 def test_get_current_location_uses_base_location_without_calendar() -> None:
     """Without a calendar, the base location remains active."""
     now = datetime.fromisoformat("2026-08-29T12:30:00+00:00")

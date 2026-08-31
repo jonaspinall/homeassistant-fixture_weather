@@ -193,6 +193,9 @@ class FixtureWeatherEntity(
             "forecast_location": (
                 self.coordinator.data.current_location
             ),
+            "days_until_event_start": (
+                self.coordinator.data.days_until_event_start
+            ),
             "precipitation_probability": self.coordinator.data.current.get(
                 "precipitation_probability"
             ),
