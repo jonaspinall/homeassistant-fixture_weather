@@ -296,6 +296,27 @@ def test_days_until_event_start_counts_full_days() -> None:
     )
 
 
+def test_days_until_event_start_is_negative_when_no_future_event_exists() -> None:
+    """Without a future event, the attribute should not appear as zero."""
+    now = datetime.fromisoformat("2026-08-29T11:00:00+00:00")
+
+    assert FixtureWeatherCoordinator._days_until_event_start([], now) == -1
+
+    assert (
+        FixtureWeatherCoordinator._days_until_event_start(
+            [
+                {
+                    "location": "Boston, MA",
+                    "start": "2026-08-28T09:00:00+00:00",
+                    "end": "2026-08-28T10:00:00+00:00",
+                }
+            ],
+            now,
+        )
+        == -1
+    )
+
+
 def test_get_current_location_uses_base_location_without_calendar() -> None:
     """Without a calendar, the base location remains active."""
     now = datetime.fromisoformat("2026-08-29T12:30:00+00:00")

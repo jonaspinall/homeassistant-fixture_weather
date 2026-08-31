@@ -422,7 +422,8 @@ class FixtureWeatherCoordinator(
         """Return full 24-hour periods until the next event start.
 
         An active event or a previous event within the grace period
-        counts as zero days remaining.
+        counts as zero days remaining. If no future event exists, return
+        -1 so the attribute does not falsely appear as an imminent event.
         """
         for event in sorted(
             events,
@@ -455,7 +456,7 @@ class FixtureWeatherCoordinator(
 
             return int(delta // timedelta(days=1))
 
-        return 0
+        return -1
 
     @staticmethod
     def _apply_event_location(
