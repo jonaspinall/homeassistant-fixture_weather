@@ -38,6 +38,7 @@ class FixtureWeatherData:
     minutely_precipitation: list[dict[str, Any]]
     current: dict[str, Any]
     current_location: str
+    days_until_event_start: int
     locations_by_date: dict[date, str]
     precipitation_summary: str
     precipitation_attributes: dict[str, Any]
@@ -260,6 +261,11 @@ class FixtureWeatherCoordinator(
             self._base_location,
         )
 
+        days_until_event_start = self._days_until_event_start(
+            events,
+            now,
+        )
+
         assert current_location is not None
 
         current_forecast = forecast_by_location[
@@ -288,6 +294,7 @@ class FixtureWeatherCoordinator(
             minutely_precipitation=minutely_precipitation,
             current=current,
             current_location=current_location_name,
+            days_until_event_start=days_until_event_start,
             locations_by_date=locations_by_date,
             precipitation_summary=summary,
             precipitation_attributes=attributes,
@@ -406,6 +413,49 @@ class FixtureWeatherCoordinator(
             return last_event[0]
 
         return base_location_name
+
+    @staticmethod
+    def _days_until_event_start(
+        events: list[dict[str, Any]],
+        now: datetime,
+    ) -> int:
+        """Return full 24-hour periods until the next event start.
+
+        An active event or a previous event within the grace period
+        counts as zero days remaining.
+        """
+        for event in sorted(
+            events,
+            key=lambda event: (
+                _parse_calendar_datetime(event.get("start"))
+                or datetime.max.replace(tzinfo=dt_util.UTC),
+            ),
+        ):
+            start = _parse_calendar_datetime(event.get("start"))
+            end = _parse_calendar_datetime(event.get("end"))
+
+            if start is None:
+                continue
+
+            if end is None:
+                end = start
+
+            if start <= now:
+                if now < end:
+                    return 0
+
+                if now < end + EVENT_LOCATION_GRACE_PERIOD:
+                    return 0
+
+                continue
+
+            delta = start - now
+            if delta < timedelta(days=1):
+                return 0
+
+            return int(delta // timedelta(days=1))
+
+        return 0
 
     @staticmethod
     def _apply_event_location(
