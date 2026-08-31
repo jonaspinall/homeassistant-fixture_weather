@@ -38,6 +38,8 @@ class FixtureWeatherData:
     minutely_precipitation: list[dict[str, Any]]
     current: dict[str, Any]
     current_location: str
+    current_location_lat: float
+    current_location_lon: float
     days_until_event_start: int
     locations_by_date: dict[date, str]
     precipitation_summary: str
@@ -267,11 +269,13 @@ class FixtureWeatherCoordinator(
         )
 
         assert current_location is not None
+        current_location_lat = current_location.latitude
+        current_location_lon = current_location.longitude
 
         current_forecast = forecast_by_location[
             (
-                current_location.latitude,
-                current_location.longitude,
+                current_location_lat,
+                current_location_lon,
             )
         ]
 
@@ -294,6 +298,8 @@ class FixtureWeatherCoordinator(
             minutely_precipitation=minutely_precipitation,
             current=current,
             current_location=current_location_name,
+            current_location_lat=current_location_lat,
+            current_location_lon=current_location_lon,
             days_until_event_start=days_until_event_start,
             locations_by_date=locations_by_date,
             precipitation_summary=summary,

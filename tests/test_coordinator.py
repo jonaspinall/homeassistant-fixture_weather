@@ -7,6 +7,7 @@ from custom_components.fixture_weather.coordinator import (
     FixtureWeatherCoordinator,
 )
 from custom_components.fixture_weather.geocoder import Location
+from custom_components.fixture_weather.weather import FixtureWeatherEntity
 
 
 
@@ -315,6 +316,35 @@ def test_days_until_event_start_is_negative_when_no_future_event_exists() -> Non
         )
         == -1
     )
+
+
+def test_weather_entity_exposes_forecast_location_coordinates() -> None:
+    """Weather attributes should expose the selected forecast coordinates."""
+
+    class StubCoordinator:
+        base_location_name = "Base City"
+        data = SimpleNamespace(
+            current_location="Boston, MA",
+            current_location_lat=42.3601,
+            current_location_lon=-71.0589,
+            days_until_event_start=0,
+            current={
+                "precipitation_probability": 40,
+                "precipitation": 0.5,
+            },
+        )
+
+        def async_add_listener(self, *_args, **_kwargs):
+            return lambda: None
+
+    class StubEntry:
+        entry_id = "abc123"
+        title = "Test entries"
+
+    entity = FixtureWeatherEntity(StubCoordinator(), StubEntry())
+
+    assert entity.extra_state_attributes["forecast_location_lat"] == 42.3601
+    assert entity.extra_state_attributes["forecast_location_lon"] == -71.0589
 
 
 def test_get_current_location_uses_base_location_without_calendar() -> None:

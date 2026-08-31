@@ -193,6 +193,12 @@ class FixtureWeatherEntity(
             "forecast_location": (
                 self.coordinator.data.current_location
             ),
+            "forecast_location_lat": (
+                self.coordinator.data.current_location_lat
+            ),
+            "forecast_location_lon": (
+                self.coordinator.data.current_location_lon
+            ),
             "days_until_event_start": (
                 self.coordinator.data.days_until_event_start
             ),
