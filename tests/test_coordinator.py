@@ -361,16 +361,41 @@ def test_get_current_location_uses_base_location_without_calendar() -> None:
     assert location == "Base City"
 
 
-def test_get_current_location_uses_upcoming_event_before_it_starts() -> None:
-    """The first upcoming event should win even before it starts."""
-    now = datetime.fromisoformat("2026-08-29T23:50:00+00:00")
+def test_get_current_location_keeps_grace_before_next_event_starts() -> None:
+    """The prior event's location should stay active during grace, before the next event begins."""
+    now = datetime.fromisoformat("2026-08-29T13:30:00+00:00")
+
+    location = FixtureWeatherCoordinator._get_current_location_name(
+        [
+            {
+                "location": "Boston, MA",
+                "start": "2026-08-29T12:00:00+00:00",
+                "end": "2026-08-29T12:30:00+00:00",
+            },
+            {
+                "location": "New York, NY",
+                "start": "2026-08-29T18:00:00+00:00",
+                "end": "2026-08-29T19:00:00+00:00",
+            },
+        ],
+        now,
+        "Base City",
+        datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
+    )
+
+    assert location == "Boston, MA"
+
+
+def test_get_current_location_uses_upcoming_event_after_grace_and_before_it_starts() -> None:
+    """Once the grace window has expired, the next event should take over before its start."""
+    now = datetime.fromisoformat("2026-08-30T00:05:00+00:00")
 
     location = FixtureWeatherCoordinator._get_current_location_name(
         [
             {
                 "location": "Boston, MA",
                 "start": "2026-08-29T20:00:00+00:00",
-                "end": "2026-08-29T21:30:00+00:00",
+                "end": "2026-08-29T21:00:00+00:00",
             },
             {
                 "location": "New York, NY",
@@ -472,8 +497,8 @@ def test_merge_hourly_forecast_starts_at_current_hour() -> None:
     ]
 
 
-def test_get_current_location_uses_upcoming_event_before_it_starts() -> None:
-    """An upcoming calendar event should replace the previous venue before its start."""
+def test_get_current_location_keeps_previous_event_during_grace() -> None:
+    """A future event should not replace the prior venue until the grace period ends."""
     now = datetime.fromisoformat("2026-08-29T23:50:00+00:00")
 
     location = FixtureWeatherCoordinator._get_current_location_name(
@@ -494,7 +519,7 @@ def test_get_current_location_uses_upcoming_event_before_it_starts() -> None:
         datetime.fromisoformat("2026-09-12T00:00:00+00:00"),
     )
 
-    assert location == "New York, NY"
+    assert location == "Boston, MA"
 
 
 def test_get_current_location_uses_next_event_at_start() -> None:
