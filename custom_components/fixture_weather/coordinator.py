@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -434,12 +434,21 @@ class FixtureWeatherCoordinator(
         for event in sorted(
             events,
             key=lambda event: (
-                _parse_calendar_datetime(event.get("start"))
+                _parse_calendar_datetime(
+                    event.get("start"),
+                    now.tzinfo,
+                )
                 or datetime.max.replace(tzinfo=dt_util.UTC),
             ),
         ):
-            start = _parse_calendar_datetime(event.get("start"))
-            end = _parse_calendar_datetime(event.get("end"))
+            start = _parse_calendar_datetime(
+                event.get("start"),
+                now.tzinfo,
+            )
+            end = _parse_calendar_datetime(
+                event.get("end"),
+                now.tzinfo,
+            )
 
             if start is None:
                 continue
@@ -1113,12 +1122,16 @@ def _combine_precipitation_types(
 
 def _parse_calendar_datetime(
     value: Any,
+    local_timezone: tzinfo | None = None,
 ) -> datetime | None:
     """Parse a calendar datetime or all-day date."""
     if isinstance(
         value,
         datetime,
     ):
+        if value.tzinfo is None and local_timezone is not None:
+            return value.replace(tzinfo=local_timezone)
+
         return value
 
     if isinstance(
@@ -1130,6 +1143,11 @@ def _parse_calendar_datetime(
         )
 
         if parsed is not None:
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(
+                    tzinfo=local_timezone or dt_util.DEFAULT_TIME_ZONE
+                )
+
             return parsed
 
         parsed_date = dt_util.parse_date(
@@ -1137,7 +1155,7 @@ def _parse_calendar_datetime(
         )
 
         if parsed_date is not None:
-            timezone = dt_util.DEFAULT_TIME_ZONE
+            timezone = local_timezone or dt_util.DEFAULT_TIME_ZONE
 
             return datetime.combine(
                 parsed_date,

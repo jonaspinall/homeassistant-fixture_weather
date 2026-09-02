@@ -297,6 +297,27 @@ def test_days_until_event_start_counts_full_days() -> None:
     )
 
 
+def test_days_until_event_start_treats_naive_calendar_time_as_local() -> None:
+    """Naive calendar timestamps use the timezone of the current time."""
+    now = datetime.fromisoformat(
+        "2026-09-02T08:00:00+01:00"
+    )
+
+    assert (
+        FixtureWeatherCoordinator._days_until_event_start(
+            [
+                {
+                    "location": "Edgbaston, Birmingham",
+                    "start": "2026-09-09 11:00:00",
+                    "end": "2026-09-09 19:00:00",
+                }
+            ],
+            now,
+        )
+        == 7
+    )
+
+
 def test_days_until_event_start_is_negative_when_no_future_event_exists() -> None:
     """Without a future event, the attribute should not appear as zero."""
     now = datetime.fromisoformat("2026-08-29T11:00:00+00:00")
