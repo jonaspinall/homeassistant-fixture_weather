@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime, time
 from typing import Any
 
 from homeassistant.components.weather import (
@@ -102,6 +103,7 @@ class FixtureWeatherEntity(
     _attr_supported_features = (
         WeatherEntityFeature.FORECAST_HOURLY
         | WeatherEntityFeature.FORECAST_DAILY
+        | WeatherEntityFeature.FORECAST_TWICE_DAILY
     )
 
     _attr_native_temperature_unit = "°C"
@@ -324,6 +326,93 @@ class FixtureWeatherEntity(
                     ),
                 }
             )
+
+        return forecasts
+
+    async def async_forecast_twice_daily(
+        self,
+    ) -> list[dict[str, Any]]:
+        """Return daytime and nighttime forecasts."""
+        forecasts: list[dict[str, Any]] = []
+        timezone = dt_util.get_time_zone(
+            self.coordinator.hass.config.time_zone
+        )
+        assert timezone is not None
+
+        for entry in self.coordinator.data.daily:
+            for is_daytime, timestamp, temperature, apparent_temperature in (
+                (
+                    True,
+                    entry.get("sunrise"),
+                    entry.get("temperature_2m_max"),
+                    entry.get("apparent_temperature_max"),
+                ),
+                (
+                    False,
+                    entry.get("sunset"),
+                    entry.get("temperature_2m_min"),
+                    entry.get("apparent_temperature_min"),
+                ),
+            ):
+                fallback_hour = 6 if is_daytime else 18
+                fallback_date = entry.get("local_date")
+
+                if not isinstance(fallback_date, date):
+                    daily_datetime = entry.get("datetime")
+
+                    if isinstance(daily_datetime, str):
+                        try:
+                            fallback_date = datetime.fromisoformat(
+                                daily_datetime
+                            ).astimezone(timezone).date()
+                        except ValueError:
+                            fallback_date = None
+
+                if isinstance(timestamp, str):
+                    try:
+                        period_datetime = datetime.fromisoformat(
+                            timestamp
+                        )
+                    except ValueError:
+                        period_datetime = None
+                else:
+                    period_datetime = None
+
+                if period_datetime is None:
+                    if not isinstance(fallback_date, date):
+                        continue
+
+                    period_datetime = datetime.combine(
+                        fallback_date,
+                        time(fallback_hour),
+                        tzinfo=timezone,
+                    )
+
+                if period_datetime.tzinfo is None:
+                    period_datetime = period_datetime.replace(
+                        tzinfo=timezone
+                    )
+
+                forecasts.append(
+                    {
+                        "datetime": period_datetime.astimezone(
+                            dt_util.UTC
+                        ).isoformat(),
+                        ATTR_FORECAST_IS_DAYTIME: is_daytime,
+                        "condition": _condition_from_code(
+                            entry.get("weather_code"),
+                            is_daytime,
+                        ),
+                        "native_temperature": temperature,
+                        "native_apparent_temperature": apparent_temperature,
+                        "native_wind_speed": entry.get(
+                            "wind_speed_10m_max"
+                        ),
+                        "native_wind_gust_speed": entry.get(
+                            "wind_gusts_10m_max"
+                        ),
+                    }
+                )
 
         return forecasts
 
