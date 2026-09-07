@@ -15,6 +15,15 @@ from custom_components.fixture_weather.geocoder import Location
 from custom_components.fixture_weather.weather import FixtureWeatherEntity
 
 
+def _run_async(coroutine):
+    """Run a coroutine without changing the process event loop."""
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coroutine)
+    finally:
+        loop.close()
+
+
 
 def test_apply_event_location_assigns_event_days_only() -> None:
     """An event uses its location through, but not including, its end date."""
@@ -418,7 +427,7 @@ def test_weather_entity_exposes_twice_daily_forecast() -> None:
         & WeatherEntityFeature.FORECAST_TWICE_DAILY
     )
 
-    forecasts = asyncio.run(
+    forecasts = _run_async(
         entity.async_forecast_twice_daily()
     )
 
@@ -481,7 +490,7 @@ def test_weather_entity_defaults_missing_twice_daily_timestamps() -> None:
 
     entity = FixtureWeatherEntity(StubCoordinator(), StubEntry())
 
-    forecasts = asyncio.run(
+    forecasts = _run_async(
         entity.async_forecast_twice_daily()
     )
 
@@ -544,7 +553,7 @@ def test_weather_entity_exposes_hourly_is_daytime() -> None:
         "custom_components.fixture_weather.weather.dt_util.now",
         return_value=now,
     ):
-        forecasts = asyncio.run(entity.async_forecast_hourly())
+        forecasts = _run_async(entity.async_forecast_hourly())
 
     assert [
         forecast["is_daytime"] for forecast in forecasts
