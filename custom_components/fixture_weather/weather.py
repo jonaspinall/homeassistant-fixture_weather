@@ -405,12 +405,6 @@ class FixtureWeatherEntity(
                         ),
                         "native_temperature": temperature,
                         "native_apparent_temperature": apparent_temperature,
-                        "native_precipitation": entry.get(
-                            "precipitation_sum"
-                        ),
-                        "precipitation_probability": entry.get(
-                            "precipitation_probability_max"
-                        ),
                         "native_wind_speed": entry.get(
                             "wind_speed_10m_max"
                         ),
