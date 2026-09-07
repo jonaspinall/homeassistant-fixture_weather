@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.weather import (
@@ -102,6 +103,7 @@ class FixtureWeatherEntity(
     _attr_supported_features = (
         WeatherEntityFeature.FORECAST_HOURLY
         | WeatherEntityFeature.FORECAST_DAILY
+        | WeatherEntityFeature.FORECAST_TWICE_DAILY
     )
 
     _attr_native_temperature_unit = "°C"
@@ -324,6 +326,70 @@ class FixtureWeatherEntity(
                     ),
                 }
             )
+
+        return forecasts
+
+    async def async_forecast_twice_daily(
+        self,
+    ) -> list[dict[str, Any]]:
+        """Return daytime and nighttime forecasts."""
+        forecasts: list[dict[str, Any]] = []
+
+        for entry in self.coordinator.data.daily:
+            for is_daytime, timestamp, temperature, apparent_temperature in (
+                (
+                    True,
+                    entry.get("sunrise"),
+                    entry.get("temperature_2m_max"),
+                    entry.get("apparent_temperature_max"),
+                ),
+                (
+                    False,
+                    entry.get("sunset"),
+                    entry.get("temperature_2m_min"),
+                    entry.get("apparent_temperature_min"),
+                ),
+            ):
+                if not isinstance(timestamp, str):
+                    continue
+
+                period_datetime = datetime.fromisoformat(timestamp)
+
+                if period_datetime.tzinfo is None:
+                    timezone = dt_util.get_time_zone(
+                        self.coordinator.hass.config.time_zone
+                    )
+                    assert timezone is not None
+                    period_datetime = period_datetime.replace(
+                        tzinfo=timezone
+                    )
+
+                forecasts.append(
+                    {
+                        "datetime": period_datetime.astimezone(
+                            dt_util.UTC
+                        ).isoformat(),
+                        ATTR_FORECAST_IS_DAYTIME: is_daytime,
+                        "condition": _condition_from_code(
+                            entry.get("weather_code"),
+                            is_daytime,
+                        ),
+                        "native_temperature": temperature,
+                        "native_apparent_temperature": apparent_temperature,
+                        "native_precipitation": entry.get(
+                            "precipitation_sum"
+                        ),
+                        "precipitation_probability": entry.get(
+                            "precipitation_probability_max"
+                        ),
+                        "native_wind_speed": entry.get(
+                            "wind_speed_10m_max"
+                        ),
+                        "native_wind_gust_speed": entry.get(
+                            "wind_gusts_10m_max"
+                        ),
+                    }
+                )
 
         return forecasts
 
