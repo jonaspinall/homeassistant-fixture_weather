@@ -9,6 +9,7 @@ from homeassistant.components.weather import (
     ATTR_CONDITION_CLOUDY,
     ATTR_CONDITION_EXCEPTIONAL,
     ATTR_CONDITION_FOG,
+    ATTR_FORECAST_IS_DAYTIME,
     ATTR_CONDITION_LIGHTNING,
     ATTR_CONDITION_LIGHTNING_RAINY,
     ATTR_CONDITION_PARTLYCLOUDY,
@@ -254,6 +255,7 @@ class FixtureWeatherEntity(
                             entry.get("is_day")
                         ),
                     ),
+                    ATTR_FORECAST_IS_DAYTIME: bool(entry.get("is_day")) if entry.get("is_day") is not None else None,
                     "native_temperature": entry.get(
                         "temperature_2m"
                     ),
@@ -298,9 +300,6 @@ class FixtureWeatherEntity(
                     "datetime": entry["datetime"],
                     "condition": _condition_from_code(
                         entry.get("weather_code"),
-                        bool(
-                            entry.get("is_day")
-                        ),
                     ),
                     "native_temperature": entry.get(
                         "temperature_2m_max"
