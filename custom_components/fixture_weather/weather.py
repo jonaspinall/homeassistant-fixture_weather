@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Any
 
 from homeassistant.components.weather import (
@@ -334,6 +334,10 @@ class FixtureWeatherEntity(
     ) -> list[dict[str, Any]]:
         """Return daytime and nighttime forecasts."""
         forecasts: list[dict[str, Any]] = []
+        timezone = dt_util.get_time_zone(
+            self.coordinator.hass.config.time_zone
+        )
+        assert timezone is not None
 
         for entry in self.coordinator.data.daily:
             for is_daytime, timestamp, temperature, apparent_temperature in (
@@ -350,16 +354,41 @@ class FixtureWeatherEntity(
                     entry.get("apparent_temperature_min"),
                 ),
             ):
-                if not isinstance(timestamp, str):
-                    continue
+                fallback_hour = 6 if is_daytime else 18
+                fallback_date = entry.get("local_date")
 
-                period_datetime = datetime.fromisoformat(timestamp)
+                if not isinstance(fallback_date, date):
+                    daily_datetime = entry.get("datetime")
+
+                    if isinstance(daily_datetime, str):
+                        try:
+                            fallback_date = datetime.fromisoformat(
+                                daily_datetime
+                            ).astimezone(timezone).date()
+                        except ValueError:
+                            fallback_date = None
+
+                if isinstance(timestamp, str):
+                    try:
+                        period_datetime = datetime.fromisoformat(
+                            timestamp
+                        )
+                    except ValueError:
+                        period_datetime = None
+                else:
+                    period_datetime = None
+
+                if period_datetime is None:
+                    if not isinstance(fallback_date, date):
+                        continue
+
+                    period_datetime = datetime.combine(
+                        fallback_date,
+                        time(fallback_hour),
+                        tzinfo=timezone,
+                    )
 
                 if period_datetime.tzinfo is None:
-                    timezone = dt_util.get_time_zone(
-                        self.coordinator.hass.config.time_zone
-                    )
-                    assert timezone is not None
                     period_datetime = period_datetime.replace(
                         tzinfo=timezone
                     )

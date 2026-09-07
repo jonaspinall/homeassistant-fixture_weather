@@ -448,6 +448,49 @@ def test_weather_entity_exposes_twice_daily_forecast() -> None:
     ]
 
 
+def test_weather_entity_defaults_missing_twice_daily_timestamps() -> None:
+    """Missing sunrise and sunset values use stable local-time defaults."""
+
+    class StubCoordinator:
+        base_location_name = "Base City"
+        hass = SimpleNamespace(
+            config=SimpleNamespace(time_zone="UTC")
+        )
+        data = SimpleNamespace(
+            current_location="Base City",
+            current_location_lat=42.3601,
+            current_location_lon=-71.0589,
+            days_until_event_start=0,
+            current={},
+            daily=[
+                {
+                    "local_date": date(2026, 8, 29),
+                    "sunrise": None,
+                    "sunset": "not-a-timestamp",
+                    "weather_code": 1,
+                }
+            ],
+        )
+
+        def async_add_listener(self, *_args, **_kwargs):
+            return lambda: None
+
+    class StubEntry:
+        entry_id = "abc123"
+        title = "Test entries"
+
+    entity = FixtureWeatherEntity(StubCoordinator(), StubEntry())
+
+    forecasts = asyncio.run(
+        entity.async_forecast_twice_daily()
+    )
+
+    assert [forecast["datetime"] for forecast in forecasts] == [
+        "2026-08-29T06:00:00+00:00",
+        "2026-08-29T18:00:00+00:00",
+    ]
+
+
 def test_weather_entity_exposes_hourly_is_daytime() -> None:
     """Hourly forecasts expose the source day/night value."""
 
