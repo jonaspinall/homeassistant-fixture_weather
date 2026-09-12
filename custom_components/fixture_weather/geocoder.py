@@ -16,7 +16,6 @@ from .const import (
     GEOCODE_CACHE_KEY,
     GEOCODE_CACHE_VERSION,
     NOMINATIM_URL,
-    OPEN_METEO_GEOCODING_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,41 +80,41 @@ class Geocoder:
                 timezone=cached.get("timezone"),
             )
 
-        # Try the complete location first. If it contains a venue and
-        # locality (e.g. "The Rose Bowl, Southampton"), also try the
-        # venue on its own if the complete query cannot be resolved.
-        queries = [query]
+        # Try the complete location first. If that fails, progressively
+        # try the venue, locality, and country components.
 
-        if "," in query:
-            venue = query.split(",", 1)[0].strip()
-            if venue and venue.casefold() != query.strip().casefold():
-                queries.append(venue)
+        queries = [query]
+        parts = [part.strip() for part in query.split(",") if part.strip()]
+        queries.extend(
+            part
+            for part in parts
+            if part.casefold() != query.strip().casefold()
+        )
 
         for geocode_query in queries:
             location = await self._async_geocode_nominatim(geocode_query)
 
             if location is None:
-                location = await self._async_geocode_open_meteo(geocode_query)
+                continue
 
-            if location is not None:
-                # Cache against the original calendar location, even when
-                # the fallback venue-only query was successful.
-                self._cache[cache_key] = {
-                    "latitude": location.latitude,
-                    "longitude": location.longitude,
-                    "display_name": location.display_name,
-                    "timezone": location.timezone,
-                }
+            # Cache against the original calendar location, even when
+            # a fallback query was successful.
+            self._cache[cache_key] = {
+                "latitude": location.latitude,
+                "longitude": location.longitude,
+                "display_name": location.display_name,
+                "timezone": location.timezone,
+            }
 
-                await self.store.async_save(self._cache)
+            await self.store.async_save(self._cache)
 
-                return Location(
-                    query=query,
-                    latitude=location.latitude,
-                    longitude=location.longitude,
-                    display_name=location.display_name,
-                    timezone=location.timezone,
-                )
+            return Location(
+                query=query,
+                latitude=location.latitude,
+                longitude=location.longitude,
+                display_name=location.display_name,
+                timezone=location.timezone,
+            )
 
         raise ValueError(f"Could not geocode location: {query}")
 
@@ -170,51 +169,6 @@ class Geocoder:
                 latitude=float(result["lat"]),
                 longitude=float(result["lon"]),
                 display_name=result.get("display_name", query),
-            )
-        except (KeyError, TypeError, ValueError):
-            return None
-
-    async def _async_geocode_open_meteo(
-        self,
-        query: str,
-    ) -> Location | None:
-        """Try the Open-Meteo geocoder."""
-        try:
-            async with self.session.get(
-                OPEN_METEO_GEOCODING_URL,
-                params={
-                    "name": query,
-                    "count": 1,
-                    "language": "en",
-                    "format": "json",
-                },
-                timeout=15,
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-
-        except Exception as err:
-            _LOGGER.debug(
-                "Open-Meteo geocoding failed for %s: %s",
-                query,
-                err,
-            )
-            return None
-
-        results = data.get("results") or []
-
-        if not results:
-            return None
-
-        result = results[0]
-
-        try:
-            return Location(
-                query=query,
-                latitude=float(result["latitude"]),
-                longitude=float(result["longitude"]),
-                display_name=result.get("name", query),
-                timezone=result.get("timezone"),
             )
         except (KeyError, TypeError, ValueError):
             return None

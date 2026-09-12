@@ -16,10 +16,6 @@ MINUTELY_PRECIPITATION_HOURS = 48
 MINUTELY_PRECIPITATION_THRESHOLD = 0.01
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
-OPEN_METEO_GEOCODING_URL = (
-    "https://geocoding-api.open-meteo.com/v1/search"
-)
-
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 
 GEOCODE_CACHE_VERSION = 1
