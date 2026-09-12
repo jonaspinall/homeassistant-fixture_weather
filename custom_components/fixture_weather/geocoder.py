@@ -81,24 +81,43 @@ class Geocoder:
                 timezone=cached.get("timezone"),
             )
 
-        location = await self._async_geocode_nominatim(query)
+        # Try the complete location first. If it contains a venue and
+        # locality (e.g. "The Rose Bowl, Southampton"), also try the
+        # venue on its own if the complete query cannot be resolved.
+        queries = [query]
 
-        if location is None:
-            location = await self._async_geocode_open_meteo(query)
+        if "," in query:
+            venue = query.split(",", 1)[0].strip()
+            if venue and venue.casefold() != query.strip().casefold():
+                queries.append(venue)
 
-        if location is None:
-            raise ValueError(f"Could not geocode location: {query}")
+        for geocode_query in queries:
+            location = await self._async_geocode_nominatim(geocode_query)
 
-        self._cache[cache_key] = {
-            "latitude": location.latitude,
-            "longitude": location.longitude,
-            "display_name": location.display_name,
-            "timezone": location.timezone,
-        }
+            if location is None:
+                location = await self._async_geocode_open_meteo(geocode_query)
 
-        await self.store.async_save(self._cache)
+            if location is not None:
+                # Cache against the original calendar location, even when
+                # the fallback venue-only query was successful.
+                self._cache[cache_key] = {
+                    "latitude": location.latitude,
+                    "longitude": location.longitude,
+                    "display_name": location.display_name,
+                    "timezone": location.timezone,
+                }
 
-        return location
+                await self.store.async_save(self._cache)
+
+                return Location(
+                    query=query,
+                    latitude=location.latitude,
+                    longitude=location.longitude,
+                    display_name=location.display_name,
+                    timezone=location.timezone,
+                )
+
+        raise ValueError(f"Could not geocode location: {query}")
 
     async def _async_geocode_nominatim(
         self,
