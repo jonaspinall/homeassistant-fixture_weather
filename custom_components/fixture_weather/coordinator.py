@@ -290,6 +290,7 @@ class FixtureWeatherCoordinator(
             current_location_name,
             event_start=current_event_start,
             event_end=current_event_end,
+            calendar_configured=bool(self.calendar_entity),
         )
 
         return FixtureWeatherData(
@@ -850,6 +851,7 @@ class FixtureWeatherCoordinator(
         current_location: str,
         event_start: datetime | None = None,
         event_end: datetime | None = None,
+        calendar_configured: bool = False,
     ) -> tuple[
         str,
         dict[str, Any],
@@ -864,6 +866,20 @@ class FixtureWeatherCoordinator(
                 float,
             ]
         ] = []
+
+        # With a configured calendar, the base-location forecast is not
+        # relevant when there is no active or upcoming event window.
+        if calendar_configured and event_start is None:
+            return (
+                "No significant precipitation expected",
+                {
+                    "location": None,
+                    "precipitation_type": None,
+                    "start": None,
+                    "end": None,
+                    "amount": 0,
+                },
+            )
 
         for entry in minutely:
             period_end = entry.get(
