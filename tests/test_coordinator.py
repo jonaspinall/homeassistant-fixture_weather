@@ -444,6 +444,41 @@ def test_precipitation_summary_without_calendar_uses_full_forecast() -> None:
     assert attributes["amount"] == 0.4
 
 
+def test_precipitation_summary_with_calendar_ignores_forecast_without_event() -> None:
+    """A configured calendar must not report base-location weather without an event."""
+    now = datetime.fromisoformat("2026-08-29T12:05:00+00:00")
+    summary, attributes = (
+        FixtureWeatherCoordinator._build_precipitation_summary(
+            [
+                {
+                    "period_start": datetime.fromisoformat(
+                        "2026-08-29T12:00:00+00:00"
+                    ),
+                    "local_datetime": datetime.fromisoformat(
+                        "2026-08-29T12:15:00+00:00"
+                    ),
+                    "precipitation": 0.2,
+                    "rain": 0.2,
+                    "snowfall": 0,
+                    "weather_code": 61,
+                },
+            ],
+            now,
+            "Base City",
+            calendar_configured=True,
+        )
+    )
+
+    assert summary == "No significant precipitation expected"
+    assert attributes == {
+        "location": None,
+        "precipitation_type": None,
+        "start": None,
+        "end": None,
+        "amount": 0,
+    }
+
+
 def test_merge_hourly_forecast_starts_at_current_hour() -> None:
     """The current hour should be included even after the minute mark."""
     coordinator = object.__new__(FixtureWeatherCoordinator)
